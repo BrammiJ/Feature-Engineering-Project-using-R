@@ -1,0 +1,762 @@
+# **CST4070 Week 10 Challenge Solution**
+
+```{r}
+#To knit into HTML/PDF without error
+chooseCRANmirror(ind = 1)
+```
+
+# **CHALLENGE: Feature Engineering for London's Airbnb Rental Income Prediction**
+
+### **Task Expectations:**
+
+1.  **Data Exploration**
+
+2.  **Data Preprocessing**
+
+3.  **Feature Engineering**
+
+## **TASK 1 : DATA EXPLORATION**
+
+**Steps in Data Exploration**
+
+-   Install and Load the necessary packages
+
+-   Load the csv files
+
+-   Check the shape of the tables to understand the size of the datasets we'll be dealing with
+
+-   Get the summary statistics for each column in the tables to understand the distribution, NA values and data types of the fields
+
+-   Display the first n lines in the tables to understand and address any Data Quality Issues
+
+-   Create Visualizations to perform extensive Exploratory Data Analysis to gain insights into the features of the datasets
+
+**Installing the necessary packages**
+
+```{r message=FALSE, warning=FALSE}
+#Installing and loading the data.table package
+install.packages("data.table")
+library(data.table)
+#Installing and loading the ggplot2 package
+install.packages("ggplot2")
+library(ggplot2)
+install.packages("tm")
+library(tm)
+install.packages("wordcloud")
+library(wordcloud)
+install.packages("dpylr")
+library(dplyr)
+```
+
+**Importing the csv files for Analysis**
+
+```{r echo=TRUE}
+#importing the listings.csv file
+listings <- read.csv("C:/Users/bramm/OneDrive/Documents/MSc Data Science/CST4070/Week 10/airbnb data/listings.csv/listings.csv")
+#importing the reviews.csv file
+reviews <- read.csv("C:/Users/bramm/OneDrive/Documents/MSc Data Science/CST4070/Week 10/airbnb data/reviews.csv")
+```
+
+**Transform the Data to Data Table Objects**
+
+```{r echo=TRUE}
+setDT(listings)
+setDT(reviews)
+```
+
+**Check for the size of the tables**
+
+```{r echo=TRUE}
+dim(listings)
+dim(reviews)
+```
+
+#### **This shows that the listings table has 87946 rows and 75 columns**
+
+#### **reviews tables has 1581033 rows and 2 columns**
+
+**Summary statistics of each column in the tables**
+
+```{r echo=TRUE}
+#summary of reviews table
+summary(reviews)
+#summary of listings table
+summary(listings)
+```
+
+**Interpretation of the summary:**
+
+**Reviews table:**
+
+1.  listing_id is of numeric type - No issues detected. Can be used as a unique identifier to merge with other tables for further analysis
+2.  date is of character type - Needs to be fixed in data cleaning
+
+**Listings table:**
+
+1.  **Numeric columns:** id, scrape_id, host_id, host_listings_count, host_total_listings_count, latitude, longitude, accommodates, beds, bedrooms, minimum_nights, maximum_nights,minimum_minimum_nights, maximum_minimum_nights, minimum_maximum_nights, maximum_maximum_nights, minimum_nights_avg_ntm, maximum_nights_avg_ntm, availability_30, availability_60, availability_90, availability_365, number_of_reviews, number_of_reviews_ltm, number_of_reviews_l30d, review_scores_rating, review_scores_accuracy, review_scores_cleanliness, review_scores_checkin, review_scores_communication, review_scores_location, review_scores_value, calculated_host_listings_count, calculated_host_listings_count_entire_homes, calculated_host_listings_count_private_rooms, calculated_host_listings_count_shared_rooms, reviews_per_month
+2.  **Text columns:** listing_url, scrape_id, last_scraped, source, name, description, neighborhood_overview, picture_url, host_url, host_name, host_since, host_location, host_about, host_response_time, host_response_rate, host_acceptance_rate, host_is_superhost, host_thumbnail_url, host_picture_url, host_neighbourhood , host_verifications, host_has_profile_pic, host_identity_verified, neighbourhood, neighbourhood_cleansed, bathrooms, bathrooms_text, calendar_updated, has_availability, license, instant_bookable
+3.  **Logical columns:** neighbourhood_group_cleansed
+4.  The min, max and quartiles of the numeric columns are studied
+5.  Columns with NULL values are identified
+
+The features with incorrect data types need to be fixed in data cleaning
+
+**Display the data in the tables**
+
+```{r echo=TRUE}
+tail(listings,3)
+tail(reviews,3)
+```
+
+### **Interpretations from EDA and Data Quality Issues to be addressed:**
+
+1.  **Data Type Conversion**: reviews\$date and listings\$host_since columns to be converted from character to Date format, to use in feature engineering
+2.  **Data Type conversion**: listings\$price to be converted from character to numeric format, to use in feature engineering
+3.  **Boolean Value Columns**: Columns such as host_is_superhost and has_availability has 't' and'f' values in columns. These values need to be updated to Boolean values to use in further analysis
+4.  **Empty Columns**: Columns with no data need to be dropped, as they add no value to the prediction of target variable
+5.  **Null Values**: Columns with high number of NULL values like review_scores_rating and bedrooms etc. need to be identified and handled because untreated missing values can affect results of analysis and model's performance
+
+### **EDA Using Visualization:**
+
+```{r echo=TRUE}
+#Plot to display the popular neighbourhood groups in London based on Frequency
+ggplot(listings, aes(x=reorder(neighbourhood_cleansed,-table(neighbourhood_cleansed)[neighbourhood_cleansed]))) +
+  geom_bar(fill="skyblue",color="black") +
+  labs(x="Neighobourhood Group", y="Frequency") +
+  ggtitle("Popular Airbnb Neighborhood Groups") +
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+```
+
+### **Interpretation of Plot:**
+
+1.  Westminster has the highest frequency of all neighbourhood groups. Westminister is also in Central London, with tourist attractions such as Big Ben, St.Paul's Cathedral etc.
+2.  This is closely followed by Tower Hamleys, which is the home to Canary Wharf and London's famous skylines.
+3.  The other popular neighbourhoods are Hackney, Kensington and Camden,all popular tourist attractions.
+
+Hence, this plot shows that neighbourhood groups with high tourist attraction count for higher number of Airbnb listings
+
+```{r echo=TRUE}
+#ordering the listings by the review count
+rank_listings <- listings[order(-number_of_reviews)]
+#selecting the highest 20 entries
+top_listing <- head(rank_listings,20)
+
+#Top 20 listings and their neighbourhood groups visualised using a bar plot
+ggplot(top_listing, aes(x=reorder(id, -number_of_reviews), y=number_of_reviews, fill=neighbourhood_cleansed)) +
+  geom_bar(stat="identity", color="black") +
+  labs(x="Listing ID", y="Number of Reviews") +
+  ggtitle("Top 20 Listings by Number of Reviews") +
+  theme(axis.text.x = element_text(angle=45,hjust=1)) +
+          scale_fill_discrete(name="Neighbourhood")
+
+
+```
+
+### **Interpretation of the Plot:**
+
+1.  The plot shows the Listings with the highest number of reviews and highlights the neighbourhood groups in which they are present.
+2.  This plot supports the previous plot, where we can see the listings with the highest number of reviews belong to the most popular neighbourhood groups in London. This further confirms that Airbnb listings are higher in neighbourhoods with large number of tourist attractions.
+
+```{r echo=TRUE}
+#Plot to check for the most popular room types in Airbnb
+ggplot(listings, aes(x=room_type)) +
+  geom_bar(fill="skyblue",color="black") +
+  labs(x="Type of Room", y="Frequency") +
+  ggtitle("Popular Room Types in Airbnb") +
+  theme(axis.text.x = element_text(angle=45,hjust=1))
+```
+
+### **Interpretation of the Plot:**
+
+1.  Entire homes have the highest frequency in Room Type column. This shows that the guests prefer to book entire homes to themselves.
+2.  This is followed by Private rooms. This further shows that guests prefer entire homes/private rooms in Airbnbs over shared rooms/hotel rooms which have very low occurence.
+
+```{r echo=TRUE}
+#Histogram of number of bedrooms
+
+ggplot(listings,aes(x=bedrooms)) +
+  geom_histogram(binwidth=1, fill="skyblue",color="black") +
+  labs(title="Frequency of bedrooms",
+       x="Number of bedrooms",
+       y="Frequency")
+```
+
+### **Interpretation of Plot:**
+
+1.  Most of the Airbnb listings have bedrooms count lesser than 10 (except for hotels or shared rooms in hostels which might have bedrooms count greater than 10).
+2.  The highest frequency of 0 bedrooms might be because of missing values in the bedrooms column, which needs to be handled and the plot needs to be redone to get a better representation
+3.  It is followed by listings with 1 bedroom being popular in the listings. This further confirms the previous plot that guests prefer to have private rooms/entire homes to themselves than hotel rooms/shared rooms with higher number of bedrooms
+
+```{r}
+#wordcloud to visualize the popular words in the top 100 listings with the highest reviews
+
+#select the top 100 listings with the highest reviews
+top_100_listings <- listings %>% 
+  arrange(desc(number_of_reviews)) %>% 
+  head(100)
+
+#Descriptions must be tokenised to remove stop words and punctuations
+corpus <- Corpus(VectorSource(top_100_listings$description))
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, removeWords, stopwords("en"))
+
+document_mat <- DocumentTermMatrix(corpus)
+
+frequency <- colSums(as.matrix(document_mat))
+#wordcloud
+wordcloud(words = names(frequency), freq = frequency, max.words = 100, random.order = FALSE)
+```
+
+### **Interpretation of the wordcloud**
+
+1.  The plot shows the frequently occuring words in the listings with the highest reviews. This plot gives us insights into how the descriptions of the listings could influence the guests to book the listings
+2.  London is Highlighted the most to indicate the significance of booking a listing in one of the most happening cities in the world.
+3.  Words like Bathroom and bedroom are highlighted to indicate the most essentia amenities.
+4.  Words like comfortable, friendly, modern, beautiful, clean and quiet are highlighted to describe the listings with the highest reviews
+5.  Heathrow is highlighted, which shows most of the listings with highest reviews are located near the airport and hence attracts more tourists
+
+# **TASK 2: PRE-PROCESSING**
+
+**Feature Selection:**
+
+From the above EDA, we identified that the listings table has 75 columns. Since all the features wouldn't add value to our final dependent variable and the model, the features which we think are irrelevant to our final model are removed from the table. The features that are irrelevant to further data cleaning and feature engineering processes are discarded. Only the features that are relevant for feature engineering, further analysis and model are kept.
+
+Performing feature selection before pre-processing helps to reduce the time spent on data cleaning on all features, where some features are irrelevant to the model being built.
+
+**Reasons for choosing Manual Feature Selection:**
+
+The listings table consists of 85000 observations and 75 features. Peforming automated feature selection on datasets of big volumes requires more computational power and resources. Manual Feature selection methods in such cases reduces computational complexity and leads to faster processing times.
+
+**Removing noise/unnecessary data from the tables and the reasoning behind it**\
+"id" : keep the column as unique identifier of the listing, which would be used for performing further merge operations with other datasets\
+"listing_url" : remove url columns as they do not add any impact on the target variable\
+"scrape_id" : discard column - scraping data not required for analysis\
+"last_scraped" : discard column - scraping data not required for analysis\
+"source" : discard column - scraping data not required for analysis\
+"name" : discard column - adds noise to data and irrelevant to final model\
+"description" : discard column - adds noise to data and irrelevant to final model\
+"neighborhood_overview" : adds noise to data and irrelevant to final model\
+"picture_url" : remove url columns as they do not add any impact on the target variable\
+"host_id" : Column kept for further analysis\
+"host_url" : remove url columns as they do not add any impact on the target variable\
+"host_name"\
+"host_since" :keep column for feature engineering "host_location" :discard column - not needed for analysis - interested in info about listings and not analysis on host behavior\
+"host_about" :discard column - not needed for analysis - interested in info about listings and not analysis on host behavior\
+"host_response_time" : Column kept for further analysis\
+"host_response_rate" : Column kept for further analysis\
+"host_acceptance_rate": Column kept for further analysis\
+"host_is_superhost" : Column kept for further analysis\
+"host_thumbnail_url" : remove url columns as they do not add any impact on the target variable\
+"host_picture_url" : remove url columns as they do not add any impact on the target variable\
+"host_neighbourhood"::discard column - not needed for analysis - interested in info about listings and not analysis on host behavior\
+"host_listings_count" : discard because total listings_count column is kept\
+"host_total_listings_count": Column kept for further analysis\
+"host_verifications" : :discard column - not needed for analysis - interested in info about listings and not analysis on host behavior\
+"host_has_profile_pic" : :discard column - not needed for analysis - interested in info about listings and not analysis on host behavior\
+"host_identity_verified": :discard column - not needed for analysis - interested in info about listings and not analysis on host behavior\
+"neighbourhood":discard column -neighbourhood_feature is retained\
+"neighbourhood_cleansed" : Column kept for further analysis\
+"neighbourhood_group_cleansed": discard column - neighbourhood_cleansed feature is retained\
+"latitude": discard column - neighbourhood_cleansed feature is derived from this data\
+"longitude": discard column - neighbourhood_cleansed feature is derived from this data\
+"property_type": discard column because room type gives an idea on property type\
+"room_type": Column kept for further analysis\
+"accommodates": Column kept for further analysis\
+"bathrooms": drop column because empty column\
+"bathrooms_text":discard column- not needed for analysis\
+"bedrooms": keep column for analysis "beds" : keep column to perform data cleaning on bedrooms column "amenities" : keep column for to perform feature engineering\
+"price": keep column for feature engineering\
+"minimum_nights": discard column - not needed for analysis\
+"maximum_nights": discard column - not needed for analysis\
+"minimum_minimum_nights": discard column - not needed for analysis\
+"maximum_minimum_nights": discard column - not needed for analysis\
+"minimum_maximum_nights": discard column - not needed for analysis\
+"maximum_maximum_nights": discard column - not needed for analysis\
+"minimum_nights_avg_ntm": discard column - not needed for analysis\
+"maximum_nights_avg_ntm": discard column - not needed for analysis\
+"calendar_updated": discard column - not needed for analysis\
+"has_availability": keep column for feature engineering\
+"availability_30": discard column - not needed for analysis\
+"availability_60": discard column - not needed for analysis\
+"availability_90": discard column - not needed for analysis\
+"availability_365": discard column - not needed for analysis\
+"calendar_last_scraped": discard column: scraping data is not of interest for this analysis\
+"number_of_reviews": keep column for analysis\
+"number_of_reviews_ltm": discard column - not needed for analysis\
+"number_of_reviews_l30d": discard column - not needed for analysis\
+"first_review": discard column - not needed for analysis\
+"last_review": discard column - not needed for analysis\
+"review_scores_rating" : keep column for analysis\
+"review_scores_accuracy" :discard column - not needed for analysis- only interested in review scores of overall rating "review_scores_cleanliness" :discard column - not needed for analysis- only interested in review scores of overall rating\
+"review_scores_checkin" :discard column - not needed for analysis- only interested in review scores of overall rating\
+"review_scores_communication":discard column - not needed for analysis- only interested in review scores of overall rating\
+"review_scores_location" :discard column - not needed for analysis- only interested in review scores of overall rating\
+"review_scores_value" :discard column - not needed for analysis- only interested in review scores of overall rating\
+"license": discard column as column contains only 1 value and the rest are empty\
+"instant_bookable": discard column - not needed for analysis "calculated_host_listings_count":discard column - not needed for analysis - interested in info about listings and not analysis on host behavior "calculated_host_listings_count_entire_homes" :discard column - not needed for analysis - interested in info about listings and not analysis on host behavior "calculated_host_listings_count_private_rooms":discard column - not needed for analysis - interested in info about listings and not analysis on host behavior "calculated_host_listings_count_shared_rooms" :discard column - not needed for analysis - interested in info about listings and not analysis on host behavior "reviews_per_month": discard column - interested in quarterly revenue prediction. So monthly data not required
+
+```{r}
+listings <- listings[, c("id","host_id","host_since","host_response_rate","host_acceptance_rate","host_is_superhost","host_total_listings_count","neighbourhood_cleansed","room_type","accommodates","bedrooms","beds","amenities","price","has_availability","number_of_reviews","review_scores_rating")]
+```
+
+#### **IDENTIFYING NULL VALUES IN listings TABLE**
+
+```{r}
+#number of null values in a column
+NA_count <- colSums(is.na(listings))
+#percentage of null values for each column
+NA_prop <- NA_count / nrow(listings)
+NA_percentage <- NA_prop *100
+#dataframe to store missing values
+NA_cols_df <- data.frame(NA_count,NA_percentage)
+#converting to data table
+NA_cols <- data.table(NA_cols_df, keep.rownames =TRUE)
+#print table containing null values
+print(NA_cols)
+```
+
+## **HANDLING NULL VALUES IN THE DATA**
+
+**Handling null values in host_listings_count_total column**
+
+**Drop the 5 rows in host_total_listings_count with null values because it accounts to only 0.005% of the data**
+
+```{r}
+listings <- listings[!is.na(host_total_listings_count)]
+null_listing_count <- sum(is.na(listings$host_total_listings_count))
+print(paste("The number of null values in host_total_listings_count feature is: ", null_listing_count))
+```
+
+**Handling NULL values in bedrooms column:\
+ASSUMPTION: If bed is present in a property, the room the bed is present is counted as bedroom** **If bed is present in listing, update the rows where bedrooms column is NULL to 1**
+
+```{r}
+update_rows <- is.na(listings$bedrooms) & !is.na(listings$beds)
+
+listings[update_rows, bedrooms :=1]
+```
+
+**If both bedrooms and beds are NULL after the previous step, update the bedrooms value to 0, as this indicates there is neither beds or bedrooms in the property**
+
+```{r}
+null_rows <- is.na(listings$bedrooms) & is.na(listings$beds)
+
+listings[null_rows, bedrooms :=0]
+```
+
+**drop the beds column from table since missing values in bedrooms column has been handled**
+
+```{r}
+listings[, beds:=NULL]
+
+null_listing_beds <- sum(is.na(listings$bedrooms))
+print(paste("The number of null values in bedrooms feature is: ", null_listing_beds))
+```
+
+### **Handling the null values in reviews_score_rating column**
+
+**imputing the null values in reviews_score_rating_column by the average rating score of listing's host's other listings**
+
+```{r}
+#calculate average rating
+avg_rating <- listings[, .(average_rating=mean(review_scores_rating, na.rm=TRUE)), by=host_id]
+
+#merge with original table
+listings <- merge(listings, avg_rating, by="host_id",all.x=TRUE)
+
+#Impute null values with average rating
+listings[is.na(review_scores_rating), review_scores_rating := average_rating]
+#Remove the average_rating column
+listings[, average_rating := NULL]
+```
+
+**For the rows where review_scores_rating is NULL after previous step, impute with 0**
+
+```{r}
+listings[is.na(review_scores_rating), review_scores_rating := 0]
+
+null_reviews <- sum(is.na(listings$review_scores_rating))
+print(paste("The number of null values in review_scores_rating feature is: ", null_reviews))
+```
+
+**The null values in host_acceptance rate column and host_response rate column are not showing up because these columns are present as text.\
+So, these columns must be converted to numeric type and null values must be handled**
+
+```{r}
+# Convert host_acceptance_rate column to numeric
+listings[, host_acceptance_rate := as.numeric(gsub("%", "", host_acceptance_rate))]
+
+# Convert host_response_rate column to numeric
+listings[, host_response_rate := as.numeric(gsub("%", "", host_response_rate))]
+
+null_hrr_before_clean <- sum(is.na(listings$host_response_rate))
+print(paste("The number of null values in host response rate feature before cleaning is: ", null_hrr_before_clean))
+
+null_arr_before_clean <- sum(is.na(listings$host_acceptance_rate))
+print(paste("The number of null values in host response rate feature before cleaning is: ", null_arr_before_clean))
+
+```
+
+**Now, NA values in the columns are handled by imputing the mean value of these columns as the response rate and acceptance rate**
+
+```{r}
+#calculate mean acceptance rate
+avg_acc_rate <- mean(listings$host_acceptance_rate,na.rm=TRUE)
+#calculate mean response rate
+avg_resp_rate <- mean(listings$host_response_rate, na.rm=TRUE)
+
+#impute NA values with the mean values of the column
+listings[is.na(host_acceptance_rate), host_acceptance_rate := avg_acc_rate]
+listings[is.na(host_response_rate), host_response_rate := avg_resp_rate]
+
+null_hrr_after_clean <- sum(is.na(listings$host_response_rate))
+print(paste("The number of null values in host response rate feature after cleaning is: ", null_hrr_after_clean))
+
+null_arr_after_clean <- sum(is.na(listings$host_acceptance_rate))
+print(paste("The number of null values in host acceptance rate feature after cleaning is: ", null_arr_after_clean))
+```
+
+**Potential Drawbacks to consider before imputing the null values in a column with average value**
+
+1\. Impact on relationships\
+2. Bias\
+3. Loss of variability\
+4.Assumption of Normality
+
+### **CHECKING FOR NULL VALUES IN reviews TABLE**
+
+```{r}
+#number of null values in a column
+NA_count_reviews <- colSums(is.na(reviews))
+#percentage of null values for each column
+NA_prop_reviews <- NA_count_reviews / nrow(reviews)
+NA_percentage_reviews <- NA_prop_reviews *100
+#dataframe to store missing values
+NA_cols_df_reviews <- data.frame(NA_count_reviews,NA_percentage_reviews)
+#converting to data table
+NA_cols_reviews <- data.table(NA_cols_df_reviews, keep.rownames =TRUE)
+#print table containing null values
+print(NA_cols_reviews)
+```
+
+**No NULL values in review table**
+
+```{r}
+#number of null values in a column
+NA_count <- colSums(is.na(listings))
+#percentage of null values for each column
+NA_prop <- NA_count / nrow(listings)
+NA_percentage <- NA_prop *100
+#dataframe to store missing values
+NA_cols_df <- data.frame(NA_count,NA_percentage)
+#converting to data table
+NA_cols <- data.table(NA_cols_df, keep.rownames =TRUE)
+#print table containing null values
+print(NA_cols)
+```
+
+**Result of Data Cleaning:** NULL values have been handled in both tables
+
+## **CONVERTING INCORRECT DATA TYPES TO CORRECT DATA TYPES**
+
+Adjusting inaccurate data types to their correct counterparts is crucial for efficient data preprocessing and analysis. Firstly, it upholds data integrity by ensuring consistency across the dataset. Inaccurate data types can lead to computational errors, undermining the reliability of analyses and subsequent decisions.
+
+Secondly, it guarantees compatibility with various data manipulation tools and algorithms. Specific operations require precise data types, and inconsistencies can result in incorrect outcomes or dysfunctional tools.
+
+Thirdly, employing appropriate data types enhances the precision of analyses, calculations, and visualizations.
+
+In summary, rectifying inaccurate data types is fundamental for maintaining data quality, ensuring analysis accuracy, and enabling compatibility with analytical tools. It reinforces dataset integrity, interpretability, and efficiency, laying the foundation for informed insights and decision-making processes.
+
+**Convert price column in listings table from text type to numeric type**
+
+```{r}
+
+listings$price <- as.numeric(gsub("[$,]", "", listings$price))
+
+print(paste("The type of price feature after cleaning is:",typeof(listings$price)))
+```
+
+**Convert date column in reviews table from character type to date**
+
+```{r}
+reviews$date <- as.Date(reviews$date)
+
+print(paste("The type of date feature after cleaning is:",class(reviews$date)))
+```
+
+**Convert host_since column in listings table from character type to date**
+
+```{r}
+listings$host_since <- as.Date(listings$host_since)
+print(paste("The type of host_since feature after cleaning is:",class(listings$host_since)))
+```
+
+**Replace 't' with TRUE and 'f' with FALSE in 'host_is_superhost' and 'has_availability' columns so that we can convert text columns to Boolean columns**
+
+```{r}
+# Replace 't' with TRUE and 'f' with FALSE in 'host_is_superhost' column
+listings[, host_is_superhost := ifelse(tolower(host_is_superhost) == 't', TRUE, 
+                                          ifelse(tolower(host_is_superhost) == 'f', FALSE, NA))]
+
+# Replace 't' with TRUE and 'f' with FALSE in 'has_availability' column
+listings[, has_availability := ifelse(tolower(has_availability) == 't', TRUE, 
+                                          ifelse(tolower(has_availability) == 'f', FALSE, NA))]
+
+# Replace NA values with FALSE in 'host_is_superhost' column
+listings[is.na(host_is_superhost), host_is_superhost := FALSE]
+
+print(paste("The type of host_is_superhost feature after cleaning is: ", typeof(listings$host_is_superhost)))
+
+```
+
+```{r}
+
+print(paste("The type of has_availability feature after cleaning is: ", typeof(listings$has_availability)))
+```
+
+# Results of Data Preprocessing:
+
+The issues marked as to be addressed after performing EDA have been handled
+
+**All the data inconsistencies in the tables have been handled**
+
+1\. **Data Type Conversion**: reviews\$date and listings\$host_since columns converted from character to Date format, for use in feature engineering
+
+2\. **Data Type conversion**: listings\$price converted from character to numeric format, for use in feature engineering
+
+3\. **Boolean Value Columns**: Features such as host_is_superhost and has_availability has 't' and'f' values in columns. These values need are updated to Boolean values for use in further analysis
+
+4\. **Empty Columns**: Columns with no data are dropped, as they add no value to the prediction of target variable and the model
+
+5\. **Null Values**: Columns with high number of NULL values like review_scores_rating and bedrooms etc. are identified and null values are handled because untreated missing values can affect results of analysis and model's performance
+
+**Recreating the plot from EDA for bedrooms after NULL values have been handled (as mentioned earlier)**
+
+```{r echo=TRUE}
+#Histogram of number of bedrooms
+
+ggplot(listings,aes(x=bedrooms)) +
+  geom_histogram(binwidth=1, fill="skyblue",color="black") +
+  labs(title="Frequency of bedrooms",
+       x="Number of bedrooms",
+       y="Frequency")
+```
+
+**Interpretation of plot:** Most of the listings have 1 bedrooms\
+
+# **Task 3: FEATURE ENGINEERING**
+
+**Create a feature engineering model designed to predict rental revenue using the given features. Formulate your features based on specific hypotheses, incorporating initial speculative ideas**\
+
+## Creating the quarterly revenue feature for the listings, which will serve as the target variable
+
+**Revenue Prediction**: Creating this feature will enable predictive modeling techniques to forecast the revenue generated by individual listings over specific quarters. This prediction is essential for various stakeholders, including property owners, investors, and rental platforms, as it helps in estimating future earnings and making informed business decisions.
+
+**Feature Engineering:** The quarterly revenue feature can be used as a target variable for feature engineering, where additional predictive features are derived from existing data to improve model performance.
+
+```{r}
+# Create quarters based on the date column
+reviews[, quarter := cut(date, breaks = "quarters")]
+
+# Group by listing_id and quarter, and count the number of reviews per quarter for each listing id
+reviews_per_listing_per_quarter <- reviews[, .(reviews_count = .N), by = .(listing_id, quarter)]
+
+#Extracting price from listings table
+reviews_per_listing_per_quarter_with_price <- merge(reviews_per_listing_per_quarter, listings[, .(id, price)], by.x = "listing_id", by.y = "id", all.x = TRUE)
+
+#calculating quarterly revenue
+reviews_per_listing_per_quarter_with_price[, quarterly_revenue := price * reviews_count]
+
+print(head(reviews_per_listing_per_quarter_with_price),20)
+```
+
+## **FEATURE 1: Hypothesis based on initial speculation: Higher the number of amenities, higher is the quarterly revenue of the listing**
+
+**Intuitive Relationship:** It is reasonable to assume that properties with more amenities may attract more guests and potentially command higher prices. Guests often look for listings with amenities that enhance their comfort and convenience, such as Wi-Fi, air conditioning, parking, and kitchen facilities. Therefore, there is an intuitive basis for expecting a positive relationship between the number of amenities and quarterly revenue.\
+**Industry Trends:** In the hospitality industry, properties with extensive amenities tend to be associated with higher prices and revenue. Hotels and resorts often advertise their amenities as a selling point to attract guests and justify premium pricing.\
+The amenities column is of type character, where each entry consists of a list of amenities for the corresponding listing. Each amenity in the amenities column is counted to get the total number of amenities for the corresponding listing.
+
+```{r}
+library(stringr)
+
+#Amenities in each row of the amenities column
+listings[,amenities_count := str_count(amenities, ",")+1]
+
+unique_amenities <- unique(listings$amenities_count)
+
+print(unique_amenities)
+
+#removing the original amenities column, as amenities_count will be used for our analysis
+listings[, amenities := NULL]
+
+```
+
+## **FEATURE 2: Hypothesis based on initial speculation: Higher the trustworthiness of the host, higher will be the quarterly revenue of the listing**
+
+**Trust Factor:** Trust is a critical aspect of the sharing economy and is particularly important in the context of short-term rental platforms like Airbnb. Guests are more likely to book accommodations from hosts they perceive as trustworthy, as it contributes to their overall sense of security and satisfaction with the booking experience.\
+
+**Reputation Management:** Hosts with higher trustworthiness ratings may have built a positive reputation over time by consistently providing quality service, maintaining clear communication, and receiving positive reviews from previous guests. This positive reputation can attract more guests and lead to higher occupancy rates and revenue.\
+
+**Creating the host_trustworthiness column using the below assumption:**\
+1. If the host is superhost and the rating of the listing is greater than 4, then the host has high trustworthiness.\
+2. If the host is superhost and the rating of the listing is between 3 and 4, then the trust worthiness of the host is moderate.\
+3. If the host is not a superhost and the rating of the listing is greater than 4, then the trustworthiness of the host is moderate.\
+4. In all other cases (The host is superhost but ratings below 3 and host is not superhost and ratings below 4), the trustworthiness of the host is low.
+
+```{r}
+host_trustworthiness_extract <- function(is_superhost,rating) {
+  ifelse(is_superhost &rating >4, "high",
+         ifelse(is_superhost &rating >=3 & rating<4, "moderate",
+                ifelse(!is_superhost &rating >4, "moderate","low")))
+  
+}
+#create host_trustworthiness column
+listings[, host_trustworthiness := host_trustworthiness_extract(host_is_superhost,review_scores_rating)]
+
+head(listings,20)
+```
+
+## **FEATURE 3: Hypothesis based on initial speculation: Faster the response rates and acceptance rates of the host, higher the chances of bookings. Hence higher quarterly revenue of the listing**
+
+**Customer Satisfaction:** Fast response times and high acceptance rates are indicative of good customer service and responsiveness. Guests appreciate hosts who promptly respond to inquiries and booking requests, leading to higher levels of satisfaction with the booking process. Satisfied guests are more likely to leave positive reviews and recommend the listing to others, ultimately contributing to higher occupancy rates and revenue.\
+**Competitive Advantage:** In a competitive marketplace such as Airbnb, where guests have numerous options to choose from, hosts who demonstrate quick responsiveness and high acceptance rates may gain a competitive advantage. Guests are more likely to choose listings from hosts who are readily available and responsive, leading to increased booking rates and revenue for these hosts.
+
+\
+**We converted the acceptance rates and response rates features from character to numeric during data cleaning. Now we will convert the numeric values into categories based on the below assumption:**\
+1. If the response and acceptance rates are below 50%, the rates are very slow.\
+2. If the response and acceptance rates are between 50% and 60%, the rates are slow.\
+3. If the response and acceptance rates are between 60% and 80%, the rates are moderate.\
+4. If the response and acceptance rates are between 80% and 90%, the rates are fast.\
+5. If the response and acceptance rates are between 90% and 100%, the rates are very fast.
+
+```{r}
+#Response Rate column
+# Define the breaks and labels for the categories
+break_intervals <- c(0, 50, 60, 80, 90, 100)
+cat_label <- c("Very Slow", "Slow", "Moderate", "Fast", "Very Fast")
+
+# Convert the numeric column to categorical
+listings$host_response_rate_category <- cut(listings$host_response_rate, breaks = break_intervals, labels = cat_label, include.lowest = TRUE)
+
+#Acceptance Rate column
+listings$host_acceptance_rate_category <- cut(listings$host_acceptance_rate, breaks = break_intervals, labels = cat_label, include.lowest = TRUE)
+#unique values in the columns
+unique_hrr <- unique(listings$host_response_rate_category)
+unique_arr <- unique(listings$host_acceptance_rate_category)
+
+#removing the original host_response_rate and host_acceptance_rate columns since it will not be needed for analysis
+listings[, c("host_response_rate","host_acceptance_rate") := NULL]
+
+
+# Print the unique values of response rates and acceptance rates columns
+print(unique_hrr)
+print(unique_arr)
+```
+
+## **FEATURE 4: Hypothesis based on initial speculation: Longer the experience of the host, higher will be the quarterly revenue of the listing**
+
+**Expertise and Knowledge:** Hosts with longer experience in the short-term rental market are likely to have accumulated valuable knowledge and expertise in managing their listings effectively. They may have learned best practices for optimizing pricing, marketing their properties, and providing excellent customer service over time. This accumulated knowledge can contribute to higher occupancy rates, better guest satisfaction, and ultimately higher quarterly revenue.\
+
+**The experience of the host is calculated by counting the days since the host has joined the Airbnb platform**
+
+```{r}
+#Calculate the number of days since the host has joined the Airbnb platform to get the experience of the host
+listings$host_experience <- as.numeric(Sys.Date() - listings$host_since)
+
+head(listings,20)
+
+listings[, host_since := NULL]
+
+```
+
+### **Encoding of categorical features**
+
+Now that the new features have been created from the existing features, categorical features are to be encoded. The categorical features in our data are:\
+1. host_response_rate_category\
+2. host_acceptance_rate_category\
+3. host_trustworthiness\
+4. room type (shared rooms \< hotel rooms \< private rooms \< entire houses/apts)\
+
+Since these columns have a meaningful order in them, ordinal encoding is performed on these categorical columns.
+
+**Reasons for performing ordinal encoding of features in tables:**
+
+**Preserving Significant Order:** Within the dataset of short-term rental market, specific categorical attributes like host response rate category, acceptance rate category, and trustworthiness inherently exhibit a significant order. For instance, a higher category in response or acceptance rates usually indicates a more proficient host. By employing ordinal encoding, we guarantee the preservation of this consequential order within the encoded attributes. This enables machine learning models to effectively capture and utilize this information.
+
+**Streamlining Feature Representation:** Ordinal encoding simplifies the portrayal of ordinal categorical attributes by transforming them into a numerical format. This simplification facilitates easier comprehension and computation for machine learning algorithms, as they can now perceive these attributes as continuous variables with a natural hierarchy.
+
+**Boosting Model Performance:** Through appropriate encoding of ordinal attributes, we furnish valuable insights to machine learning models, leading to enhanced predictive accuracy. Models trained on encoded attributes adeptly capture the ordinal associations between categories, resulting in more precise predictions, particularly in tasks where category order holds significance.
+
+**Preventing Data Loss:** Ordinal encoding circumvents the loss of information observed in other encoding methodologies, like one-hot encoding, where the hierarchical relationship between categories is disregarded. In scenarios where category order bears crucial information, such as in the short-term rental market dataset, ordinal encoding ensures the retention and utilization of this valuable information by the machine learning model.
+
+```{r}
+ordinal_mappings <- list(
+  host_response_rate_category = c("very slow" = 1, "slow" = 2, "moderate" = 3, "fast"=4,"very fast"=5),
+  host_acceptance_rate_category = c("very slow" = 1, "slow" = 2, "moderate" = 3, "fast"=4,"very fast"=5),
+  room_type = c("Shared room" = 1, "Hotel room" = 2, "Private room" =3,"Entire home/apt"=4),
+  host_trustworthiness = c("low" = 1, "moderate" = 2, "high" = 3)
+)
+
+for (column in names(ordinal_mappings)) {
+  # Perform ordinal encoding based on the defined mapping
+  listings[[paste0(column, "_encoded")]] <- ordinal_mappings[[column]][listings[[column]]]
+}
+
+#dropping the original columns after encoding the columns:
+listings[,c("host_response_rate_category","host_acceptance_rate_category","room_type","host_trustworthiness") := NULL]
+```
+
+### **creating final table consisting of all features created**
+
+```{r}
+final_feature_table <- merge(listings, reviews_per_listing_per_quarter_with_price, by.x = "id", by.y = "listing_id", all.x = TRUE)
+
+dim(final_feature_table)
+head(final_feature_table,20)
+```
+
+### Handling null values in the final table to avoid data inconsistencies
+
+```{r}
+# Checking for NULL values
+na_count_final <- colSums(is.na(final_feature_table))
+
+# Print the counts of null values in each column
+print(na_count_final)
+rm(na_count_final)
+```
+
+**for the listing ids without quarterly revenue, we drop them from the table because analysis is focused on predicting quarterly revenue of listings**
+
+```{r}
+final_feature_table <- final_feature_table[complete.cases(final_feature_table$quarterly_revenue), ]
+
+na_count_fc <- colSums(is.na(final_feature_table))
+
+# Print the counts of null values in each column
+print(na_count_fc)
+rm(na_count_fc)
+```
+
+# **Results of Feature Engineering:**
+
+1.  quarterly_revenue feature was created by grouping the listings by quarter and taking the product of price and number of reviews for the listing. This feature will serve as target variable for further analysis on the data.
+2.  amenities_count feature was created from amenities column with the initial assumption that higher the number of amenities, higher will be the quarterly revenue
+3.  host_trustworthiness feature was created using the host_is_superhost and review_scores_rating features with the initial assumption that higher the trustworthiness of the host, higher will be the quarterly revenue
+4.  host_response_rate_category and host_acceptance_rate_category features were created from host_response_rate and host_acceptance_rate features with the initial assumption that higher the response and acceptance rates of the host, higher will be the chances of bookings. Hence, higher the quarterly revenue.
+5.  host_experience feature was created from the host_since feature with the initial assumption that longer the host has been in the platform, higher will be the quarterly revenue of the listing
+
+### **Next steps:**
+
+The Data Exploration, Data Pre-processing and Feature Engineering tasks of the challenge has been successfully completed.
+
+The newly created features can further be tested for correlation with the target variable to determine the positive or negative correlation with the target variable and a regression model can be fitted on the data to predict the quarterly revenue of the listing.
+
+### **References:**
+
+1.  Handling missing values in R: <https://uc-r.github.io/missing_values>
+2.  Performing Ordinal Encoding on categorical variables: <https://search.r-project.org/CRAN/refmans/cleandata/html/encode_ordinal.html>
+3.  Performing Ordinal Encoding on categorical variables: <https://www.tmwr.org/categorical>
+4.  Feature Engineering: <https://www.analyticsvidhya.com/blog/2021/10/a-beginners-guide-to-feature-engineering-everything-you-need-to-know/>
